@@ -5,6 +5,134 @@
 $script_name = $MyInvocation.MyCommand.Name;
 $script_path = $PSScriptRoot;
 $log_path    = "$($script_path)\$($script_name).log";
+$lines = Get-Item -Path "$($script_path)\$($script_name).ps1" | Get-Content -Tail 1
+
+#
+#1 Changing firewall rules
+$netrulenames = [string[]](
+"SNMPTRAP-In-UDP",
+"EventForwarder-In-TCP",
+"EventForwarder-RPCSS-In-TCP",
+"RemoteFwAdmin-In-TCP-NoScope",
+"RemoteFwAdmin-In-TCP",
+"WMI-RPCSS-In-TCP-NoScope",
+"WMI-WINMGMT-In-TCP-NoScope",
+"WMI-ASYNC-In-TCP-NoScope",
+"FPS-NB_Session-In-TCP-NoScope",
+"FPS-SMB-In-TCP-NoScope",
+"FPS-NB_Name-In-UDP-NoScope",
+"FPS-NB_Datagram-In-UDP-NoScope",
+"FPS-SpoolSvc-In-TCP-NoScope",
+"FPS-RPCSS-In-TCP-NoScope",
+"FPS-ICMP4-ERQ-In-NoScope",
+"FPS-ICMP6-ERQ-In-NoScope",
+"NETDIS-UPnPHost-In-TCP-NoScope",
+"NETDIS-NB_Name-In-UDP-NoScope",
+"NETDIS-NB_Datagram-In-UDP-NoScope",
+"NETDIS-WSDEVNTS-In-TCP-NoScope",
+"NETDIS-WSDEVNT-In-TCP-NoScope",
+"NETDIS-SSDPSrv-In-UDP-Active",
+"NETDIS-SSDPSrv-In-UDP",
+"NETDIS-FDPHOST-In-UDP",
+"NETDIS-DAS-In-UDP",
+"NETDIS-LLMNR-In-UDP",
+"NETDIS-FDRESPUB-WSD-In-UDP",
+"RemoteAssistance-RAServer-In-TCP-NoScope-Active",
+"RemoteAssistance-DCOM-In-TCP-NoScope-Active",
+"RemoteAssistance-In-TCP-EdgeScope-Active",
+"RemoteAssistance-SSDPSrv-In-UDP-Active",
+"RemoteAssistance-SSDPSrv-In-TCP-Active",
+"RemoteAssistance-PnrpSvc-UDP-In-EdgeScope-Active",
+"MSDTC-In-TCP-NoScope",
+"MSDTC-KTMRM-In-TCP-NoScope",
+"RemoteEventLogSvc-In-TCP-NoScope",
+"RemoteEventLogSvc-NP-In-TCP-NoScope",
+"RemoteEventLogSvc-RPCSS-In-TCP-NoScope",
+"RemoteSvcAdmin-In-TCP-NoScope",
+"RemoteSvcAdmin-NP-In-TCP-NoScope",
+"RemoteSvcAdmin-RPCSS-In-TCP-NoScope",
+"PerfLogsAlerts-PLASrv-In-TCP-NoScope",
+"PerfLogsAlerts-DCOM-In-TCP-NoScope",
+"RemoteTask-In-TCP-NoScope",
+"RemoteTask-RPCSS-In-TCP-NoScope",
+"WINRM-HTTP-In-TCP-NoScope",
+"WINRM-HTTP-Compat-In-TCP-NoScope",
+"RemoteDesktop-UserMode-In-TCP",
+"RemoteDesktop-UserMode-In-UDP"
+)
+#For Debug only
+#Write-Host $netrulenames.Length
+
+$i=0
+do {
+    #For Debug only
+    #Get-NetFirewallRule -Name $netrulenames[$i]
+    Set-NetFirewallRule -Name $netrulenames[$i] -Profile Domain -Enabled True | Out-file -Append -FilePath $log_path
+    #For Debug only
+    #Write-Host $netrulenames[$i]
+    #Write-Host $i
+    $i++
+    Write-Progress -Activity "Changing firewall rules" -Status "Completed:" -PercentComplete ($i/$netrulenames.Count*100)
+} until ($i -ge $netrulenames.Length)
+#1 Changing firewall rules
+$Task="Changing firewall rules"
+Write-Progress -Activity "Started Task" -Status $Task
+Write-Progress -Activity "Implementig Task" -Status "is completed"
+
+#2 Remove MS Mail and Calendar
+$Task="Remove MS Mail and Calendar"
+Write-Progress -Activity "Started Task" -Status $Task
+Remove-AppxProvisionedPackage -Online -AllUsers -PackageName microsoft.windowscommunicationsapps_16005.13426.20920.0_neutral_~_8wekyb3d8bbwe | Out-file -Append -FilePath $log_path
+Write-Progress -Activity "Implementig Task" -Status "is completed"
+
+#3 Setting Up Power Scheme to Ultra Perfomance and Disable Hibernate
+$Task="Setting Up Power Scheme to Ultra Perfomance and Disable Hibernate"
+Write-Progress -Activity "Started Task" -Status $Task
+powercfg /s e9a42b02-d5df-448d-aa00-03f14749eb61
+powercfg /l | Out-file -Append -FilePath $log_path
+powercfg /H OFF
+Write-Progress -Activity "Implementig Task" -Status "is completed"
+
+#4 Setting Up VMware Horizon Logon Monitor Service to Automatic
+$Task="Setting Up VMware Horizon Logon Monitor Service to Automatic"
+Write-Progress -Activity "Started Task" -Status $Task
+Set-Service -Name vmlm -StartupType Automatic | Out-file -Append -FilePath $log_path
+Write-Progress -Activity "Implementig Task" -Status "is completed"
+
+#5 Setting Up For Roaming Profile Support
+$Task="Setting Up For Roaming Profile Support"
+Write-Progress -Activity "Started Task" -Status $Task
+#The required policy (https://docs.microsoft.com/en-us/windows-server/storage/folder-redirection/deploy-roaming-user-profiles)
+New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Name 'SpecialRoamingOverrideAllowed' -PropertyType DWORD -Value 1 | Out-file -Append -FilePath $log_path
+#Support for the APPX for the Roaming Profiles
+New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Appx' -Name 'AllowDeploymentInSpecialProfiles' -PropertyType DWORD -Value 1 | Out-file -Append -FilePath $log_path
+Write-Progress -Activity "Implementig Task" -Status "is completed"
+
+#6 Disable First Logon Animation
+$Task="Disable First Logon Animation"
+Write-Progress -Activity "Started Task" -Status $Task
+New-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'EnableFirstLogonAnimation' -PropertyType DWORD -Value 0 | Out-file -Append -FilePath $log_path
+Write-Progress -Activity "Implementig Task" -Status "is completed"
+
+#7 Enable Guest Authentication in SMB Share Folders
+$Task="Enable Guest Authentication in SMB Share Folders"
+Write-Progress -Activity "Started Task" -Status $Task
+New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters' -Name 'AllowInsecureGuestAuth' -PropertyType DWORD -Value 1 | Out-file -Append -FilePath $log_path
+Write-Progress -Activity "Implementig Task" -Status "is completed"
+
+#8 Changing Visual Effects for Better Perfomance
+$Task="Changing Visual Effects for Better Perfomance"
+Write-Progress -Activity "Started Task" -Status $Task
+#Setting Up Visual Effects for Perfomance Mode
+Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name UserPreferencesMask -Value ([byte[]](0x9E,0x2C,0x07,0x80,0x10,0x00,0x00,0x00)) | Out-file -Append -FilePath $log_path
+New-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name 'VisualFxSetting' -PropertyType DWORD -Value 2 | Out-file -Append -FilePath $log_path
+#Disable Transparency Effect
+Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'EnableTransparency' -Value '0' | Out-file -Append -FilePath $log_path
+#Diabling windows animation for all users
+Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name MinAnimate -Value 0 | Out-file -Append -FilePath $log_path
+#Disable Logon Background Image
+Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'DisableLogonBackgroundImage' -Value '1' | Out-file -Append -FilePath $log_path
+
 
 
 ## other
@@ -74,11 +202,6 @@ New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search
 New-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search' -Name 'SearchboxTaskbarMode' -PropertyType DWORD -Value '1' | Out-Null;
 Write-Host "";
 
-##
-Write-Host "Clearing event logs...";
-Write-Host "";
-Get-EventLog -LogName * | ForEach { Clear-EventLog $_.Log };
-Write-Host "";
 
 
 # disabled
@@ -133,24 +256,6 @@ Disable-ScheduledTask -TaskName "\Microsoft\Windows\Windows Media Sharing\Update
 Disable-ScheduledTask -TaskName "\Microsoft\Windows\WOF\WIM-Hash-Management" | Out-Null;
 Disable-ScheduledTask -TaskName "\Microsoft\Windows\WOF\WIM-Hash-Validation" | Out-Null; 
 Write-Host "";
-
-
-## view/animation
-Write-Host "Diabling windows animation for all users" -ForegroundColor Green;
-Write-Host "";
-REG ADD "HKEY_CURRENT_USER\Control Panel\Desktop\WindowMetrics" /v MinAnimate /t REG_SZ /d 0 /f >nul 2>&1;
-Write-Host "";
-
-##
-Write-Host "Configuring Winlogon..." -ForegroundColor Green
-Write-Host "";
-Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'DisableLogonBackgroundImage' -Value '1';
-Write-Host "";
-
-## 
-Write-Host "Removing Transparency Effects..." -ForegroundColor Green;
-Write-Host "";
-Set-ItemProperty -Path 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'EnableTransparency' -Value '0';
 
 ##
 Write-Host "Run registry optimize performance (Optimized System Properties, Performance Options)" -ForegroundColor Green;
@@ -218,38 +323,6 @@ cleanmgr /verylowdisk
 Write-Host "";
 
 
-## software
-Write-Host "Remove mail app, calendar, microsoft BA";
-Write-Host "";
-Remove-AppxProvisionedPackage -Online -PackageName "Microsoft.windowscommunicationsapps" -Allusers | Out-Null
-Remove-AppxPackage -Package "Microsoft.windowscommunicationsapps" | Out-Null
-Write-Host ""; 
-
-
-## scom/sccm fix
-Write-Host "Stopping ccmexec..." -ForegroundColor Green;
-Write-Host "";
-net stop CcmExec;
-Write-Host "";
-
-Write-Host "Removing smscfg.ini" -ForegroundColor Green;
-Write-Host "";
-del c:\windows\SMSCFG.ini;
-Write-Host ""; 
-
-Write-Host "Removing ssl store SMS SMS" -ForegroundColor Green;
-Write-Host "";
-certutil –delstore SMS SMS;
-Write-Host ""; 
-
-
-## powerplan
-Write-Host "Disabling Hibernate..." -ForegroundColor Green;
-Write-Host "";
-POWERCFG -h off;
-Write-Host "";
-
-
 ## network
 Write-Host "Configuring Network List Service to start Automatic..." -ForegroundColor Green;
 Write-Host "";
@@ -288,6 +361,11 @@ Write-Host "";
 Write-Host "Waiting for 7 seconds..." -ForegroundColor Green;
 Write-Host "";
 TIMEOUT /T 10 /NOBREAK;
+Write-Host "";
+
+Write-Host "Clearing event logs...";
+Write-Host "";
+Get-EventLog -LogName * | ForEach { Clear-EventLog $_.Log };
 Write-Host "";
 
 Write-Host "SHUTDOWN"
